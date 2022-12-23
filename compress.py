@@ -6,6 +6,7 @@ from pathlib import Path
 from time import monotonic
 from datetime import datetime
 from loguru import logger
+from typing import Optional
 
 logger.add(f"logs/{cfg.log_name}.log", format="{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}", level="DEBUG",
            rotation="1 day", compression="zip")
@@ -14,7 +15,17 @@ logger.add(f"logs/{cfg.log_name}_error.log", format="{time:DD.MM.YYYY HH:mm:ss} 
 
 
 @logger.catch
-def timeout(path, pool):
+def timeout(path: Path, pool: concurrent.futures.ThreadPoolExecutor) -> Optional[list]:
+    """
+    Function that tracks time to connect to the received directory
+
+    Parameters:
+        path (Path): Path to the directory or file.
+        pool (concurrent.futures.ThreadPoolExecutor): Threads for async execution.
+    Returns:
+        future.result (list): A list containing the names of directories and/or files.
+    """
+
     future = pool.submit(os.listdir, path)
     try:
         return future.result(cfg.timeout_time)
@@ -23,12 +34,12 @@ def timeout(path, pool):
 
 
 @logger.catch
-def creation_time_check(file_path: str) -> int:
+def creation_time_check(file_path: Path) -> int:
     """
     Function of checking creation date. Checks the creation date of the file from the received path.
 
     Parameters:
-        file_path (str): Path to the file.
+        file_path (Path): Path to the directory or file.
     Returns:
         res (int): Number of days elapsed from the current time to the date of file creation.
     """
@@ -44,12 +55,12 @@ def creation_time_check(file_path: str) -> int:
 
 
 @logger.catch
-def images_compress(path: str, renamed: int = 0, compressed: int = 0) -> tuple[int, int]:
+def images_compress(path: Path, renamed: int = 0, compressed: int = 0) -> tuple[int, int]:
     """
     Compression function. Compresses image files in all nested directories from the received path.
 
     Parameters:
-        path (str): Path to the directory.
+        path (Path): Path to the directory or file.
         renamed (int): Variable for counting the number of renamed files.
         compressed (int): Variable for counting the number of compressed files.
     Returns:
@@ -74,14 +85,14 @@ def images_compress(path: str, renamed: int = 0, compressed: int = 0) -> tuple[i
                 # Recursive traversal through all directories inside the path
                 if Path.is_dir(iter_path):
                     logger.info(f"Going to \"{short_path}\"")
-                    res = images_compress(path=str(iter_path), renamed=renamed, compressed=compressed)
+                    res = images_compress(path=iter_path, renamed=renamed, compressed=compressed)
                     renamed, compressed = res[0], res[1]
                     logger.info(f"Back to \"{short_path}\"")
                     continue
 
                 # Checking that the object is a file and has the specified extensions in the name
                 if not Path.is_dir(iter_path) and i[extension:] in cfg.image_format:
-                    file_date = creation_time_check(str(iter_path))
+                    file_date = creation_time_check(iter_path)
                     new_filename = i.replace(" ", "-")
 
                     # Checking that the file creation time matches condition
@@ -91,7 +102,7 @@ def images_compress(path: str, renamed: int = 0, compressed: int = 0) -> tuple[i
 
                     # Finding and replacing spaces in the file name
                     if " " in i and not Path.exists(Path(path, new_filename)):
-                        os.rename(src=iter_path, dst=str(Path(path, new_filename)))
+                        os.rename(src=iter_path, dst=Path(path, new_filename))
                         logger.info(f"  \"{i}\" was renamed to \"{new_filename}\"")
                         i = new_filename
                         iter_path = Path(path, i)
