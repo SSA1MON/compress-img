@@ -1,4 +1,4 @@
-# Скрипт для сжатия изображений
+# Script for image compression
 
 <p align="center">
 <img src="https://img.shields.io/github/repo-size/SSA1MON/compress-img?label=size" alt="repo-size">
@@ -7,23 +7,24 @@
 <img src="https://img.shields.io/github/last-commit/SSA1MON/compress-img" alt="commits">
 </p>
 
-## Описание
-Скрипт работает на базе [mozjpeg](https://github.com/mozilla/mozjpeg) by Mozilla. 
-Получает на вход путь, проходится по всем директориям внутри, сжимает изображения
-создавая копию файла с постфиксом и удаляя оригинал.
+## Description
+The script is based on [mozjpeg](https://github.com/mozilla/mozjpeg ) by Mozilla. 
+Receives the input path, goes through all the directories inside, compresses the images
+creating a copy of the file with a postfix and deletes the original.
 
-Посмотреть команды: 
+View commands: 
 ```
 cjpeg -h
 ```
 
-## Как запустить
-В файле config.py прописываем путь к директории с изображениями в img_path
+## How to launch
+### Windows:
+In the config.py file it is necessary to write the path to the directory with images in img_path
 ```
 img_path = Path("C:/Users/ИмяПользователя/Documents/images")
 ```
 
-Устанавливаем дополнительные библиотеки и можно запускать
+Install additional libraries and can to run
 ```
 pip install pathlib
 pip install loguru
@@ -32,31 +33,29 @@ pip install loguru
 ## Releases
 * [All releases](https://github.com/SSA1MON/compress-img/releases)
 
-## Известные проблемы
-### Проблемы с кириллицей в пути
+## Known issues
+### Problems with Cyrillic in the Windows path
 
-Если в пути присутствует кириллица:
-
-Для решения проблемы нужно открыть редактор реестра
+If Cyrillic is present in the path, you need to open the registry editor to solve the problem
 ```
 1. Win + R
 2. regedit
 ```
-В редакторе реестра необходимо открыть ветку
+In the registry editor, you need to open the branch
 ```
 HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Nls\CodePage
 ```
-Изменить значения параметров 1250 (с c_1250.nls на c_1251.nls), 
-1251 (убедится что c_1251.nls), 1252 (с c_1252.nls на c_1251.nls).
+Change the values of parameters 1250 (from c_1250.nls to c_1251.nls),
+1251 (make sure that c_1251.nls), 1252 (from c_1252.nls to c_1251.nls)
 
-Открыть настройки региональных стандартов
+Open Regional Standards Settings
 ```
 Win + R
 intl.cpl
 ```
-Перейти во вкладку «Дополнительно». В «Язык программ, не поддерживающих Юникод» убедиться, 
-что выбран текущий язык программ «Русский (Россия)». 
+Go to the "Advanced" tab. In the "Language of programs that do not support Unicode" make sure, 
+that the current program language is "Russian (Russia)".
 
-Далее перейти «Изменить язык системы» и
-убрать галочку с «Бета версия: Использовать Юникод UTF-8 для поддержки языка во всем мире».
-Перезагрузить ПК.
+Then go to "Change the system language" and  uncheck "Beta version: 
+Use Unicode UTF-8 to support the language worldwide".
+Restart the PC.
