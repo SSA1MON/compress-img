@@ -1,0 +1,13 @@
+{
+  "img_path": "PATH_IS_HERE",
+  "image_format": [".jpg", ".jpeg", ".png"],
+  "postfix": "_compressed",
+  "quality": "40",
+  "log_name": "compress",
+  "rotation": "1 day",
+  "compression": "zip",
+  "timeout_time": 2,
+  "creation_time": 0
+
+}
+

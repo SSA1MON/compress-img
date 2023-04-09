@@ -12,22 +12,16 @@ The script is based on [mozjpeg](https://github.com/mozilla/mozjpeg ) by Mozilla
 Receives the input path, goes through all the directories inside, compresses the images
 creating a copy of the file with a postfix and deletes the original.
 
-View commands: 
-```
-cjpeg -h
-```
-
 ## How to launch
 ### Windows:
 In the config.py file it is necessary to write the path to the directory with images in img_path
 ```
-img_path = Path("C:/Users/ИмяПользователя/Documents/images")
+img_path = Path("C:/Users/UserName/Documents/images")
 ```
 
 Install additional libraries and can to run
 ```
-pip install pathlib
-pip install loguru
+pip install -r requirements.txt
 ```
 
 ## Releases
