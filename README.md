@@ -8,7 +8,7 @@
 </p>
 
 ## Description
-The script is based on [mozjpeg](https://github.com/mozilla/mozjpeg ) by Mozilla. 
+The script is based on [pillow](https://github.com/python-pillow/Pillow) library. 
 Receives the input path, goes through all the directories inside, compresses the images
 creating a copy of the file with a postfix and deletes the original.
 
