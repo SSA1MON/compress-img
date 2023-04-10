@@ -1,34 +1,37 @@
 import json
 import os
+import sys
 import threading
 
 from pathlib import Path
 from time import monotonic, sleep
 from datetime import datetime
-from loguru import logger
 from typing import Optional, Tuple
+from loguru import logger
 
 with open('config.json', mode='r', encoding='utf-8') as file:
     config = json.load(file)
 
 logger.add(f'logs/{config["log_name"]}.log',
            format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
-           level='DEBUG', rotation='1 day', compression='zip')
+           level='DEBUG', rotation=f'{config["rotation"]}', compression='zip')
 logger.add(f'logs/{config["log_name"]}_error.log',
            format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
-           level='ERROR', rotation='1 day', compression='zip')
+           level='ERROR', rotation=f'{config["rotation"]}', compression='zip')
 
 
-@logger.catch
 def timeout(path: str) -> Optional[list]:
     """
     The function checks the availability of the received path.
-    Returns None if the path has not responded after the specified amount of time.
+    Returns None if Path has not responded after the specified amount of time.
     Args:
-        path (str):
+        path (str): Path to the directory
     Returns:
-        contents (list):
+        contents (list): List with file names
     """
+    if not Path.exists(Path(path)):
+        logger.error(f'>>> "{path}" does not exist.')
+        raise FileNotFoundError(f'>>> "{path}" does not exist.')
     contents = []
     thr = threading.Thread(target=lambda: contents.extend(os.listdir(path)))
     thr.daemon = True
@@ -39,26 +42,24 @@ def timeout(path: str) -> Optional[list]:
     return contents
 
 
-@logger.catch
 def creation_time_check(file_path: str) -> int:
     """
     The function of checking the creation date. Checks the file creation date by the received path.
     Args:
-        file_path (str): The path to the file
+        file_path (str): Path to the file
     Returns:
         res (int): The number of days elapsed from the current time to the date of file creation.
     """
     current_time = datetime.now()
     create_time = datetime.fromtimestamp(os.path.getctime(file_path))
-    res = str(current_time - create_time)
-    if 'days' in res:
-        res = int(res.split()[0])
+    res = current_time - create_time
+    if 'days' in str(res):
+        res = res.days
     else:
         res = 0
     return res
 
 
-@logger.catch
 def search_extension_index(name: str) -> Optional[int]:
     """
     Function to search for the file extension from the received string.
@@ -76,15 +77,14 @@ def search_extension_index(name: str) -> Optional[int]:
     return None
 
 
-@logger.catch
 def search_filename_spaces(
         dir_path: str, img_path: str, filename: str, new_filename: str
-) -> Optional[bool]:
+) -> bool:
     """
     The function searches for the space character in the file name and replaces it.
     Args:
         dir_path (str): Path to the directory with images
-        img_path (str): The path to a specific image
+        img_path (str): Path to a specific image
         filename (str): File name
         new_filename (str): New file name
     Returns:
@@ -97,14 +97,13 @@ def search_filename_spaces(
     return False
 
 
-@logger.catch
 def compress_image(dir_path: str, img_path: str, filename: str, ext_index: Optional[int]) -> None:
     """
     Compression function. Compresses image files in the directory by the received path
     and rename the file depending on the config.
     Args:
         dir_path (str): Path to the directory with images
-        img_path (str): The path to a specific image
+        img_path (str): Path to a specific image
         filename (str): File name
         ext_index (int): File extension index
     """
@@ -116,8 +115,10 @@ def compress_image(dir_path: str, img_path: str, filename: str, ext_index: Optio
     )
 
 
-@logger.catch
-def search_files(path: str, renamed: int = 0, compressed: int = 0) -> Tuple[int, int]:
+def search_files(
+        path: str, renamed: int = 0,
+        compressed: int = 0, warn_count: int = 0
+) -> Optional[Tuple]:
     """
     A recursive function that searches for images inside all directories by the resulting path.
     Passes the found path to the compression function.
@@ -125,85 +126,112 @@ def search_files(path: str, renamed: int = 0, compressed: int = 0) -> Tuple[int,
         path (str): Path to the directory
         renamed (int): Variable for counting the number of renamed files
         compressed (int): Variable for counting the number of compressed files
+        warn_count (int): Variable for counting the number of warnings in a row
     Returns:
         renamed (int): Number of renamed files
         compressed (int): Number of compressed files
+        None: If the files were not found or something went wrong
     """
     logger.info(f'Current directory: {path}')
-    available_path = timeout(path=path)
+    try:
+        available_path = timeout(path=path)
 
-    # Checking the connection to the directory
-    if available_path is not None:
-        for i_file_name in os.listdir(path=path):
-            iter_path = Path(path, i_file_name)
-            extension_index = search_extension_index(name=i_file_name)
+        # Checking the connection to the directory
+        if available_path is not None:
+            for i_file_name in os.listdir(path=path):
+                iter_path = Path(path, i_file_name)
+                extension_index = search_extension_index(name=i_file_name)
 
-            # Checking for a directory and ignoring files with a postfix in the name
-            if Path.exists(iter_path) and config["postfix"] not in i_file_name:
-                # Recursive traversal through all directories inside the path
-                if Path.is_dir(iter_path):
-                    logger.info(f'Going to {iter_path}')
-                    res = search_files(path=str(iter_path), renamed=renamed, compressed=compressed)
-                    renamed, compressed = res[0], res[1]
-                    logger.info(f'Back to {path}')
-                    continue
-
-                # Checking that the object is a file and has the specified extensions in its name
-                if not Path.is_dir(iter_path) and \
-                        i_file_name[extension_index:].lower() in config["image_format"]:
-                    file_date = creation_time_check(str(iter_path))
-                    new_filename = i_file_name.replace(' ', '-')
-
-                    # Checking that the file creation time matches the condition
-                    if file_date < config["creation_time"]:
-                        logger.info(f'>>> "{i_file_name}" does not meet the condition '
-                                    f'({file_date}/{config["creation_time"]} days)')
+                # Checking for a directory and ignoring files with a postfix in the name
+                if Path.exists(iter_path) and config["postfix"] not in i_file_name:
+                    # Recursive traversal of all directories inside the path and
+                    # ignoring the directories specified in the configuration
+                    if Path.is_dir(iter_path):
+                        if i_file_name in config["ignore_directories"]:
+                            logger.info(f'>>> "{i_file_name}" dir is ignored.')
+                            continue
+                        logger.info(f'Going to {iter_path}')
+                        res = search_files(
+                            path=str(iter_path), renamed=renamed,
+                            compressed=compressed, warn_count=warn_count
+                        )
+                        if res is None:
+                            if warn_count >= config["max_warnings"]:
+                                return None
+                            logger.warning(f'>>> "{i_file_name}" was not found.')
+                            continue
+                        renamed, compressed = res[0], res[1]
+                        logger.info(f'Back to {path}')
                         continue
 
-                    # Finding and replacing spaces in the file name and the absence of such a path
-                    space_result = search_filename_spaces(
-                        dir_path=path, img_path=str(iter_path),
-                        filename=i_file_name, new_filename=new_filename
-                    )
-                    if space_result is True:
-                        i_file_name = new_filename
-                        iter_path = Path(path, i_file_name)
-                        renamed += 1
+                    # Checking that the object is a file
+                    # and has the specified extensions in its name
+                    if not Path.is_dir(iter_path) and \
+                            i_file_name[extension_index:].lower() in config["image_format"]:
+                        timeout(path=path)
+                        file_date = creation_time_check(str(iter_path))
+                        new_filename = i_file_name.replace(' ', '-')
 
-                    # File compression using mozjpeg
-                    exec_time = monotonic()
-                    compress_image(
-                        dir_path=path, img_path=str(iter_path),
-                        filename=i_file_name, ext_index=extension_index
-                    )
+                        # Checking that the file creation time matches the condition
+                        if file_date < config["creation_time"]:
+                            logger.info(f'>>> "{i_file_name}" does not meet the condition '
+                                        f'({file_date}/{config["creation_time"]} days)')
+                            continue
 
-                    # Checking for the existence of a compressed file and deleting the original
-                    if Path.exists(Path(path, new_filename)):
-                        os.remove(path=iter_path)
-                        exec_time = round(monotonic() - exec_time, 2)
-                        logger.info(f'>>> {i_file_name} was compressed in {exec_time} seconds.')
-                        compressed += 1
+                        # Finding and replacing spaces in the file name
+                        # and the absence of such a path
+                        space_result = search_filename_spaces(
+                            dir_path=path, img_path=str(iter_path),
+                            filename=i_file_name, new_filename=new_filename
+                        )
+                        if space_result is True:
+                            i_file_name = new_filename
+                            iter_path = Path(path, i_file_name)
+                            renamed += 1
+
+                        # File compression using mozjpeg
+                        exec_time = monotonic()
+                        compress_image(
+                            dir_path=path, img_path=str(iter_path),
+                            filename=i_file_name, ext_index=extension_index
+                        )
+
+                        # Checking for the existence of a compressed file and deleting the original
+                        if Path.exists(Path(path, new_filename)):
+                            os.remove(path=iter_path)
+                            exec_time = round(monotonic() - exec_time, 2)
+                            logger.info(f'>>> {i_file_name} was compressed in {exec_time} seconds.')
+                            compressed += 1
+                    else:
+                        logger.warning(f'This is not an image: {iter_path}')
                 else:
-                    logger.warning(f'This is not an image: {iter_path}')
-            else:
-                logger.warning(f'Wrong name or path does not exist: {iter_path}')
-        return renamed, compressed
-    else:
-        logger.error('The path is unavailable (timeout). Interruption...')
-        return renamed, compressed
+                    logger.warning(f'Wrong name or path does not exist: {iter_path}')
+                    if not Path.exists(iter_path):
+                        warn_count += 1
+                    if warn_count >= config["max_warnings"]:
+                        logger.error('Maximum number of warnings reached. '
+                                     'Something\'s wrong. Stopping...')
+                        sys.exit(0)
+            return renamed, compressed, warn_count
+        logger.error('Path is unavailable (timeout). Interruption...')
+        return renamed, compressed, warn_count
+    except OSError as error:
+        logger.error(f'Error: {error}')
+        return 0, 0
 
 
+@logger.catch
 def main():
-    try:
-        logger.info('Starting script...')
-        sleep(1)
-        uptime = monotonic()
-        result = search_files(path=config["img_path"])
-        uptime = round(monotonic() - uptime, 2)
-        logger.success(f'Script finished. Renamed: {result[0]} '
-                       f'| Compressed: {result[1]} | Time: {uptime} sec.')
-    except Exception as ex:
-        logger.critical(ex)
+    logger.info('Starting script...')
+    sleep(1)
+    uptime = monotonic()
+    result = search_files(path=config["img_path"])
+    if result is None:
+        logger.critical('The storage is unavailable or something went wrong. Stopping...')
+        sys.exit(1)
+    uptime = round(monotonic() - uptime, 2)
+    logger.success(f'Script finished. Renamed: {result[0]} '
+                   f'| Compressed: {result[1]} | Time: {uptime} seconds.')
 
 
 if __name__ == '__main__':
