@@ -7,8 +7,9 @@ import threading
 from pathlib import Path
 from time import monotonic, sleep
 from datetime import datetime
-from PIL import Image
 from typing import Optional, Tuple
+from PIL import Image
+from wrapt_timeout_decorator import timeout
 from loguru import logger
 
 with open('config.json', mode='r', encoding='utf-8') as file:
@@ -22,7 +23,7 @@ logger.add(f'logs/{config["log_name"]}_error.log',
            level='ERROR', rotation=f'{config["rotation"]}', compression='zip')
 
 
-def timeout(path: str) -> Optional[list]:
+def timeout_connect(path: str) -> Optional[bool]:
     """
     The function checks the availability of the received path.
     Returns None if Path has not responded after the specified amount of time.
@@ -31,17 +32,21 @@ def timeout(path: str) -> Optional[list]:
     Returns:
         contents (list): List with file names
     """
-    if not Path.exists(Path(path)):
-        logger.error(f'>>> "{path}" does not exist.')
-        raise FileNotFoundError(f'>>> "{path}" does not exist.')
-    contents = []
-    thr = threading.Thread(target=lambda: contents.extend(os.listdir(path)))
-    thr.daemon = True
-    thr.start()
-    thr.join(timeout=config["timeout_time"])
-    if thr.is_alive():
-        return None
-    return contents
+    try:
+        if not Path.exists(Path(path)):
+            logger.error(f'>>> "{path}" does not exist.')
+            raise FileNotFoundError(f'>>> "{path}" does not exist.')
+        contents = []
+        thr = threading.Thread(target=lambda: contents.extend(os.listdir(path)))
+        thr.daemon = True
+        thr.start()
+        thr.join(timeout=config["CONNECTION_TIMEOUT"])
+        if thr.is_alive():
+            return None
+        return True
+    except OSError as err:
+        logger.error(f'Error: {err}')
+        raise OSError(f'Error: {err}') from err
 
 
 def creation_time_check(file_path: str) -> int:
@@ -103,6 +108,7 @@ def search_filename_spaces(
         return False
 
 
+@timeout(config["EXECUTION_TIMEOUT"])
 def compress_image(dir_path: str, img_path: str, filename: str, ext_index: Optional[int]) -> int:
     """
     Compression function. Compresses image files in the directory by the received path
@@ -120,7 +126,7 @@ def compress_image(dir_path: str, img_path: str, filename: str, ext_index: Optio
     exec_time = monotonic()
     try:
         img = Image.open(img_path)
-        img.save(Path(dir_path, new_filename), quality=config["quality"])
+        img.save(Path(dir_path, new_filename), quality=config["QUALITY"])
         img.close()
         os.remove(img_path)
         exec_time = round(monotonic() - exec_time, 2)
@@ -152,19 +158,20 @@ def path_files_handler(
     """
     logger.info(f'Current directory: {path}')
     try:
-        # Checking the connection to the directory
-        available_path = timeout(path=path)
-        if available_path is None:
-            logger.error('Path is unavailable (timeout). Interruption...')
-            return renamed, compressed
+        # removes all values with a postfix
+        file_list = list(filter(lambda x: config["postfix"] not in x, os.listdir(path)))
 
-        for i_file_name in os.listdir(path=path):
+        for i_file_name in file_list:
+            # Checking the connection to the directory
+            available_path = timeout_connect(path=path)
+            if not available_path:
+                logger.error('Path is unavailable (timeout). Interruption...')
+                return renamed, compressed
             iter_path = Path(path, i_file_name)
             extension_index = search_extension_index(name=i_file_name)
 
-            # Checking for a directory and ignoring files with a postfix in the name
-            if Path.exists(iter_path) and config["postfix"] not in i_file_name:
-
+            # Checking for a directory
+            if Path.exists(iter_path):
                 # Recursive traversal of all directories inside the path and
                 # ignoring the directories specified in the configuration
                 if Path.is_dir(iter_path):
@@ -190,7 +197,7 @@ def path_files_handler(
                 # and has the specified extensions in its name
                 if not Path.is_dir(iter_path) and \
                         i_file_name[extension_index:].lower() in config["image_format"]:
-                    timeout(path=path)
+                    timeout_connect(path=path)
                     file_date = creation_time_check(str(iter_path))
                     new_filename = re.sub(r'\s', '-', i_file_name)
 
@@ -212,15 +219,19 @@ def path_files_handler(
                         renamed += 1
 
                     # File compression by pillow
-                    result = compress_image(
-                        dir_path=path, img_path=str(iter_path),
-                        filename=i_file_name, ext_index=extension_index
-                    )
-                    compressed += result
+                    try:
+                        result = compress_image(
+                            dir_path=path, img_path=str(iter_path),
+                            filename=i_file_name, ext_index=extension_index
+                        )
+                        compressed += result
+                    except TimeoutError as err:
+                        logger.error(f'Error: {err}')
+                        continue
                 else:
                     logger.warning(f'This is not an image: {iter_path}')
             else:
-                logger.warning(f'Wrong name or path does not exist: {iter_path}')
+                logger.warning(f'Path does not exist: {iter_path}')
                 if not Path.exists(iter_path):
                     warn_count += 1
                 if warn_count >= config["max_warnings"]:
@@ -228,20 +239,20 @@ def path_files_handler(
                                  'Something\'s wrong. Stopping...')
                     sys.exit(0)
         return renamed, compressed, warn_count
-    except OSError as error:
-        logger.error(f'Error: {error}')
-        return None
+    except OSError as err:
+        logger.error(f'Error: {err}')
+        return renamed, compressed, None
 
 
 @logger.catch
 def main() -> None:
+    """ main function """
     logger.info('Starting script...')
     sleep(1)
     uptime = monotonic()
     result = path_files_handler(path=config["img_path"])
-    if result is None:
+    if None in result:
         logger.critical('The storage is unavailable or something went wrong. Stopping...')
-        sys.exit(1)
     uptime = round(monotonic() - uptime, 2)
     logger.success(f'Script finished. Renamed: {result[0]} '
                    f'| Compressed: {result[1]} | Time: {uptime} seconds.')

@@ -4,11 +4,12 @@
   "ignore_directories": ["source"],
   "max_warnings": 10,
   "postfix": "_compressed",
-  "quality": 85,
+  "QUALITY": 50,
   "log_name": "compress",
-  "rotation": "1 day",
-  "timeout_time": 1,
-  "creation_days": 30
+  "rotation": "23:59",
+  "CONNECTION_TIMEOUT": 5,
+  "EXECUTION_TIMEOUT": 30,
+  "creation_days": 0
 
 }
 

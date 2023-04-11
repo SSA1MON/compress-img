@@ -24,6 +24,24 @@ Install additional libraries and can to run
 pip install -r requirements.txt
 ```
 
+## Configuration
+```
+"img_path" — Path to the directory with images
+"image_format" — List of file extensions suitable for compression
+"ignore_directories" — List of directories that are ignored
+"max_warnings" — The number of warnings in a row, after which the script completes its work
+"postfix" — Postfix in the file name after compression
+"quality" — Percentage of preservation of the original image quality
+            (100 is the original quality)
+"log_name" — Name of the logging file
+"rotation" — The period after which the main logging file will be archived
+"connection_timeout" — Waiting time to connect to the storage (in seconds). Used to check the 
+                       visit of each iterated path
+"execution_timeout" — The working time of the compression function with the iterated file (in seconds). 
+                      After the time has elapsed, it proceeds to work with the following file
+"creation_days" — How long ago should the photo be created (in days)
+```
+
 ## Releases
 * [All releases](https://github.com/SSA1MON/compress-img/releases)
 
