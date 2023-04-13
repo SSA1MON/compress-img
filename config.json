@@ -1,7 +1,7 @@
 {
-  "img_path": "PATH_IS_HERE",
-  "image_format": [".jpg", ".jpeg", ".png"],
-  "ignore_directories": ["source"],
+  "img_path": "X:/",
+  "image_formats": [".jpg", ".jpeg", ".png"],
+  "ignore_directories": ["source", "000 Несоответствия"],
   "max_warnings": 10,
   "postfix": "_compressed",
   "QUALITY": 50,
