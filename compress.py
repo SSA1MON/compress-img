@@ -178,7 +178,7 @@ def path_files_handler(
             # Recursive traversal of all directories inside the path and
             # ignoring the directories specified in the configuration
             if Path.is_dir(iter_path):
-                if i_file_name in config["ignore_directories"]:
+                if i_file_name in config["ignore_directories"] or i_file_name.startswith('.'):
                     logger.info(f'>>> "{i_file_name}" dir is ignored.')
                     continue
                 logger.info(f'Going to {iter_path}')
