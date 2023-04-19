@@ -113,6 +113,20 @@ def search_extension_index(path: Path, name: str) -> Optional[int]:
     return None
 
 
+def convert_size(size: int) -> int:
+    """
+    Converts the size in bytes to the size in megabytes.
+    Args:
+        size (int): Size in bytes
+    Returns:
+        size (int): Size in megabytes
+    """
+    if size >= 105:     # bytes
+        result = size / (1024 ** 2)
+        return round(result, 2)
+    return 0
+
+
 @timeout(config["execution_timeout"], use_signals=False)
 def compress_image(
         dir_path: str, img_path: str, filename: str, ext_index: Optional[int]
@@ -131,13 +145,13 @@ def compress_image(
         size (float): Saved size as a result of compression
     """
     new_filename = filename[:ext_index] + config["postfix"] + filename[ext_index:]
-    logger.info(f'In the process of compression: {filename}')
     exec_time = monotonic()
     try:
-        size = os.path.getsize(img_path)
+        size = convert_size(os.path.getsize(img_path))
+        logger.info(f'In the process of compression: {filename} [{size}MB]')
         with Image.open(img_path) as img:
             img.save(Path(dir_path, new_filename), quality=config["quality"])
-        size = (size - os.path.getsize(Path(dir_path, new_filename))) / (1024 * 1024)
+        size = round(size - convert_size(os.path.getsize(Path(dir_path, new_filename))), 2)
         os.remove(img_path)
         exec_time = round(monotonic() - exec_time, 2)
         logger.info(f'>>> {filename} was compressed in {exec_time} seconds.')
@@ -226,7 +240,7 @@ def main() -> None:
         logger.error('The storage is unavailable or something went wrong. Stopping...')
     uptime = round(monotonic() - uptime, 2)
     logger.success(f'Script finished. Compressed files: {result[1]}. '
-                   f'Saved: {round(result[0], 1)} MB | Time: {uptime} seconds.')
+                   f'Saved: {result[0]} MB | Time: {uptime} seconds.')
 
 
 if __name__ == '__main__':
