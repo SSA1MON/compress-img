@@ -1,24 +1,24 @@
 import json
 import os
 import threading
-
+from datetime import datetime
 from pathlib import Path
 from time import monotonic, sleep
-from datetime import datetime
 from typing import Optional, Tuple, List
+
 from PIL import Image
-from wrapt_timeout_decorator import timeout
 from loguru import logger
+from wrapt_timeout_decorator import timeout
 
 with open('config.json', mode='r', encoding='utf-8') as file:
     config = json.load(file)
 
 logger.add(f'logs/{config["log_name"]}.log',
            format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
-           level='DEBUG', rotation=f'{config["rotation"]}', compression='zip')
+           level='DEBUG', rotation=config["rotation"], compression='zip')
 logger.add(f'logs/{config["log_name"]}_error.log',
            format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
-           level='ERROR', rotation=f'{config["rotation"]}', compression='zip')
+           level='ERROR', rotation=config["rotation"], compression='zip')
 
 
 def timeout_connect(path: str) -> Optional[bool]:
@@ -113,13 +113,13 @@ def search_extension_index(path: Path, name: str) -> Optional[int]:
     return None
 
 
-def convert_size(size: int) -> int:
+def convert_size(size: int) -> float:
     """
     Converts the size in bytes to the size in megabytes.
     Args:
         size (int): Size in bytes
     Returns:
-        size (int): Size in megabytes
+        size (float): Size in megabytes
     """
     if size >= 105:     # bytes
         result = size / (1024 ** 2)
@@ -151,7 +151,7 @@ def compress_image(
         logger.info(f'In the process of compression: {filename} [{size}MB]')
         with Image.open(img_path) as img:
             img.save(Path(dir_path, new_filename), quality=config["quality"])
-        size = round(size - convert_size(os.path.getsize(Path(dir_path, new_filename))), 2)
+        size = size - convert_size(os.path.getsize(Path(dir_path, new_filename)))
         os.remove(img_path)
         exec_time = round(monotonic() - exec_time, 2)
         logger.info(f'>>> {filename} was compressed in {exec_time} seconds.')
@@ -197,7 +197,8 @@ def path_files_handler(
                     continue
                 logger.info(f'Going to {iter_path}')
                 res = path_files_handler(
-                    path=str(iter_path), compressed_size=compressed_size,
+                    path=str(iter_path),
+                    compressed_size=compressed_size,
                     compressed_img=compressed_img
                 )
                 if res is not None:
@@ -240,7 +241,7 @@ def main() -> None:
         logger.error('The storage is unavailable or something went wrong. Stopping...')
     uptime = round(monotonic() - uptime, 2)
     logger.success(f'Script finished. Compressed files: {result[1]}. '
-                   f'Saved: {result[0]} MB | Time: {uptime} seconds.')
+                   f'Saved: {round(result[0], 2)} MB | Time: {uptime} seconds.')
 
 
 if __name__ == '__main__':

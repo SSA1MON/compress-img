@@ -13,15 +13,23 @@ Receives the input path, goes through all the directories inside, compresses the
 creating a copy of the file with a postfix and deletes the original.
 
 ## How to launch
-### Windows:
-In the config.json file it is necessary to write the path to the directory with images in img_path
+Create a virtual environment and activate it
 ```
-"img_path": "C:/Users/UserName/Documents/images"
+python3 -m venv compress-env
+source compress-env/bin/activate
 ```
-
-Install additional libraries and can to run
+Installing dependent libraries
 ```
-pip install -r requirements.txt
+pip3 install -r requirements.txt
+```
+In the config.json file it is necessary to write the path to the directory with images 
+in img_path
+```
+"img_path": "/home/user"
+```
+Run
+```
+python3 main.py
 ```
 
 ## Configuration
@@ -44,30 +52,3 @@ pip install -r requirements.txt
 
 ## Releases
 * [All releases](https://github.com/SSA1MON/compress-img/releases)
-
-## Known issues
-### Problems with Cyrillic in the Windows path
-
-If Cyrillic is present in the path, you need to open the registry editor to solve the problem
-```
-1. Win + R
-2. regedit
-```
-In the registry editor, you need to open the branch
-```
-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Nls\CodePage
-```
-Change the values of parameters 1250 (from c_1250.nls to c_1251.nls),
-1251 (make sure that c_1251.nls), 1252 (from c_1252.nls to c_1251.nls)
-
-Open Regional Standards Settings
-```
-Win + R
-intl.cpl
-```
-Go to the "Advanced" tab. In the "Language of programs that do not support Unicode" make sure, 
-that the current program language is "Russian (Russia)".
-
-Then go to "Change the system language" and  uncheck "Beta version: 
-Use Unicode UTF-8 to support the language worldwide".
-Restart the PC.
