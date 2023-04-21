@@ -34,21 +34,32 @@ python3 compress/main.py
 
 ## Configuration
 ```
+compress:
 "img_path" — Path to the directory with images
 "image_format" — List of file extensions suitable for compression
 "ignore_directories" — List of directories that are ignored
-"max_warnings" — The number of warnings in a row, after which the script completes its work
 "postfix" — Postfix in the file name after compression
 "quality" — Percentage of preservation of the original image quality
-            (100 is the original quality)
+(100 is the original quality)
+"creation_days" — How long ago should the photo be created (in days)
+
+smtp:
+"enable" — Activating mail sending (true or false)
+"from_email" — Sender email address
+"to_email" — List of recipient addresses
+"smtp_server" — SMTP Server Address
+"smtp_port" — SMTP Server Port
+
+logger:
 "log_name" — Name of the logging file
 "rotation" — The period after which the main logging file will be archived
-"connection_timeout" — Waiting time to connect to the storage (in seconds). Used to check the 
-                       visit of each iterated path
-"execution_timeout" — The working time of the compression function with the iterated file (in seconds). 
-                      After the time has elapsed, it proceeds to work with the following file
-"creation_days" — How long ago should the photo be created (in days)
+"connection_timeout" — Waiting time to connect to the storage (in seconds).
+Used to check the visit of each iterated path
+"execution_timeout" — The working time of the compression function with the
+iterated file (in seconds). After the time has elapsed, it proceeds to work 
+with the following file
 ```
 
-## Releases
+## Links
 * [All releases](https://github.com/SSA1MON/compress-img/releases)
+* [Issues](https://github.com/SSA1MON/compress-img/issues?q=is%3Aissue+is%3Aclosed)

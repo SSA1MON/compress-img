@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from typing import Optional, Tuple, List
+from email_module import send_email
 
 from PIL import Image
 from loguru import logger
@@ -49,10 +50,10 @@ def get_files_list(path: str) -> List[str]:
     Returns:
         files_list (list): List with file names
     """
-    img_formats = tuple(config["image_formats"])
+    img_formats = tuple(config["compress"]["image_formats"])
     # Removes all values with a postfix
     files_list = [filename for filename in os.listdir(path)
-                  if config["postfix"] not in filename
+                  if config["compress"]["postfix"] not in filename
                   and filename.lower().endswith(img_formats) or Path.is_dir(Path(path, filename))
                   ]
     files_list.sort()
@@ -62,7 +63,7 @@ def get_files_list(path: str) -> List[str]:
     # Checking that the file creation time matches the condition
     files_list = [filename for filename, days in days_list.items()
                   if Path.is_file(Path(path, filename))
-                  and days >= config["creation_days"] or Path.is_dir(Path(path, filename))
+                  and days >= config["compress"]["creation_days"] or Path.is_dir(Path(path, filename))
                   ]
     return files_list
 
@@ -96,7 +97,7 @@ def search_extension_index(path: Path, name: str) -> Optional[int]:
     """
     if not Path.is_dir(path):
         name = name.lower()
-        for i_ext in config["image_formats"]:
+        for i_ext in config["compress"]["image_formats"]:
             extension_index = name.rfind(i_ext)
             # Checking for the presence of a file extension in the received string
             if extension_index != -1:
@@ -135,13 +136,13 @@ def compress_image(
         int: 1 if the compression was successful, 0 if not
         size (float): Saved size as a result of compression
     """
-    new_filename = filename[:ext_index] + config["postfix"] + filename[ext_index:]
+    new_filename = filename[:ext_index] + config["compress"]["postfix"] + filename[ext_index:]
     exec_time = monotonic()
     try:
         size = convert_size(os.path.getsize(img_path))
         logger.info(f'In the process of compression: {filename} [{size}MB]')
         with Image.open(img_path) as img:
-            img.save(Path(dir_path, new_filename), quality=config["quality"])
+            img.save(Path(dir_path, new_filename), quality=config["compress"]["quality"])
         size = size - convert_size(os.path.getsize(Path(dir_path, new_filename)))
         os.remove(img_path)
         exec_time = round(monotonic() - exec_time, 2)
@@ -183,7 +184,8 @@ def path_files_handler(
             # Recursive traversal of all directories inside the path and
             # ignoring the directories specified in the configuration
             if Path.is_dir(iter_path):
-                if i_file_name in config["ignore_directories"] or i_file_name.startswith('.'):
+                if i_file_name in config["compress"]["ignore_directories"] \
+                        or i_file_name.startswith('.'):
                     logger.info(f'>>> "{i_file_name}" dir is ignored.')
                     continue
                 logger.info(f'Going to {iter_path}')
@@ -218,4 +220,5 @@ def path_files_handler(
         return compressed_size, compressed_img
     except OSError as err:
         logger.error(f'Error: {err}')
+        send_email(error=err)
         return compressed_size, compressed_img, None
