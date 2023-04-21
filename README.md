@@ -29,7 +29,7 @@ in img_path
 ```
 Run
 ```
-python3 main.py
+python3 compress/main.py
 ```
 
 ## Configuration
