@@ -1,3 +1,4 @@
 #!/bin/bash
 source ./compress-env/bin/activate
-python3 ./compress/main.py
+cd ./compress
+python3 main.py
