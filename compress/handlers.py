@@ -4,13 +4,13 @@ from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from typing import Optional, Tuple, List
-from email_module import send_email
 
 from PIL import Image
 from loguru import logger
 from wrapt_timeout_decorator import timeout
 
-from main import config
+from config import config
+from email_module import send_email
 
 
 def timeout_connect(path: str) -> Optional[bool]:

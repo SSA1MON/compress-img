@@ -1,10 +1,8 @@
-import json
 from time import monotonic
 from loguru import logger
-import handlers
 
-with open('config.json', mode='r', encoding='utf-8') as file:
-    config = json.load(file)
+from config import config
+from handlers import path_files_handler
 
 logger.add(f'logs/{config["logger"]["log_name"]}.log',
            format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
@@ -19,7 +17,7 @@ def main() -> None:
     """ main function """
     logger.info('Starting script...')
     uptime = monotonic()
-    result = handlers.path_files_handler(path=config["compress"]["img_path"])
+    result = path_files_handler(path=config["compress"]["img_path"])
     if None in result:
         logger.error('The storage is unavailable or something went wrong. Stopping...')
     uptime = round(monotonic() - uptime, 2)

@@ -1,4 +1,4 @@
-{
+config = {
   "compress": {
     "img_path": "PATH_IS_HERE",
     "image_formats": [".jpg", ".jpeg", ".png"],
@@ -8,7 +8,7 @@
     "creation_days": 0
   },
   "smtp": {
-    "enable": false,
+    "enable": False,
     "from_email": "sender@domain.com",
     "to_email": ["first@domain.com", "second@domain.com"],
     "smtp_server": "smtp.domain.com",

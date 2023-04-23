@@ -1,10 +1,10 @@
 import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from loguru import logger
 
-from main import config
+from config import config
 
 # create a message object
 message = MIMEMultipart()
