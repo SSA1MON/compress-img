@@ -1,16 +1,35 @@
+import json
 import os
+import sys
 import threading
 from datetime import datetime
 from pathlib import Path
 from time import monotonic
 from typing import Optional, Tuple, List
+import smtplib
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from PIL import Image
 from loguru import logger
 from wrapt_timeout_decorator import timeout
 
-from config import config
-from email_module import send_email
+
+try:
+    with open('config.json', 'r', encoding='utf-8') as file:
+        config = json.load(file)
+except FileNotFoundError as error:
+    print(error)
+    sys.exit(0)
+
+
+logger.add(f'logs/{config.get("logger").get("log_name")}.log',
+           format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
+           level='DEBUG', rotation=config.get("logger").get("rotation"), compression='zip')
+logger.add(f'logs/{config.get("logger").get("log_name")}_error.log',
+           format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
+           level='ERROR', rotation=config.get("logger").get("rotation"), compression='zip')
 
 
 def timeout_connect(path: str) -> Optional[bool]:
@@ -30,13 +49,69 @@ def timeout_connect(path: str) -> Optional[bool]:
         thr = threading.Thread(target=lambda: contents.extend(os.listdir(path)))
         thr.daemon = True
         thr.start()
-        thr.join(timeout=config["connection_timeout"])
+        thr.join(timeout=config.get("connection_timeout"))
         if thr.is_alive():
             return None
         return True
-    except OSError as err:
-        logger.error(f'Error: {err}')
-        raise OSError(f'Error: {err}') from err
+    except OSError as e:
+        logger.error(f'Error: {e}')
+        raise OSError(f'Error: {e}') from e
+
+
+def send_email(error_msg: OSError) -> None:
+    """
+    A function that sends an email to the addresses specified in the configuration file.
+    Without authorization.
+    Args:
+        error (OSError): The error message to be sent
+    """
+
+    def attachment(filename: str) -> MIMEApplication:
+        """A function that attaches a file to the email"""
+        try:
+            with open(f'logs/{filename}', 'r', encoding='utf-8') as logs:
+                part = MIMEApplication(logs.read())
+                part.add_header(
+                    'Content-Disposition', 'attachment',
+                    filename=filename
+                )
+            return part
+        except FileNotFoundError:
+            logger.error(f"File not found: {filename} in attachment func (email_module.py)")
+
+    if config["smtp"]["enable"]:
+        # create a message object
+        message = MIMEMultipart()
+        message['Subject'] = 'Compression execution error'
+        message['From'] = config["smtp"]["from_email"]
+        message['To'] = ', '.join(config["smtp"]["to_email"])
+
+        # add a text message to the email
+        text = MIMEText(f'An error occurred while executing\n\n{error_msg}')
+        message.attach(text)
+
+        logfile = config.get("logger").get("log_name")
+        files = [f'{logfile}.log', f'{logfile}_error.log']
+
+        for i_name in files:
+            part = attachment(i_name)
+            if part is not None:
+                message.attach(part)
+
+        try:
+            with smtplib.SMTP(
+                    config.get("smtp").get("smtp_server"),
+                    config.get("smtp").get("smtp_port")
+            ) as server:
+                server.sendmail(
+                    message['From'],
+                    config.get("smtp").get("to_email"),
+                    message.as_string()
+                )
+        except smtplib.SMTPResponseException as smtp_err:
+            error_code = smtp_err.smtp_code
+            error_message = smtp_err.smtp_error
+            logger.error(f"SMTP Error: {error_code} | {error_message}")
 
 
 def get_files_list(path: str) -> List[str]:
@@ -53,7 +128,7 @@ def get_files_list(path: str) -> List[str]:
     img_formats = tuple(config["compress"]["image_formats"])
     # Removes all values with a postfix
     files_list = [filename for filename in os.listdir(path)
-                  if config["compress"]["postfix"] not in filename
+                  if config.get("compress").get("postfix") not in filename
                   and filename.lower().endswith(img_formats) or Path.is_dir(Path(path, filename))
                   ]
     files_list.sort()
@@ -63,7 +138,7 @@ def get_files_list(path: str) -> List[str]:
     # Checking that the file creation time matches the condition
     files_list = [filename for filename, days in days_list.items()
                   if Path.is_file(Path(path, filename))
-                  and days >= config["compress"]["creation_days"] or Path.is_dir(Path(path, filename))
+                  and days >= config.get("compress").get("creation_days") or Path.is_dir(Path(path, filename))
                   ]
     return files_list
 
@@ -97,7 +172,7 @@ def search_extension_index(path: Path, name: str) -> Optional[int]:
     """
     if not Path.is_dir(path):
         name = name.lower()
-        for i_ext in config["compress"]["image_formats"]:
+        for i_ext in config.get("compress").get("image_formats"):
             extension_index = name.rfind(i_ext)
             # Checking for the presence of a file extension in the received string
             if extension_index != -1:
@@ -119,7 +194,7 @@ def convert_size(size: int) -> float:
     return 0
 
 
-@timeout(config["execution_timeout"], use_signals=False)
+@timeout(config.get("execution_timeout"), use_signals=False)
 def compress_image(
         dir_path: str, img_path: str, filename: str, ext_index: Optional[int]
 ) -> Tuple[int, float]:
@@ -136,13 +211,13 @@ def compress_image(
         int: 1 if the compression was successful, 0 if not
         size (float): Saved size as a result of compression
     """
-    new_filename = filename[:ext_index] + config["compress"]["postfix"] + filename[ext_index:]
+    new_filename = filename[:ext_index] + config.get("compress").get("postfix") + filename[ext_index:]
     exec_time = monotonic()
     try:
         size = convert_size(os.path.getsize(img_path))
         logger.info(f'In the process of compression: {filename} [{size}MB]')
         with Image.open(img_path) as img:
-            img.save(Path(dir_path, new_filename), quality=config["compress"]["quality"])
+            img.save(Path(dir_path, new_filename), quality=config.get("compress").get("quality"))
         size = size - convert_size(os.path.getsize(Path(dir_path, new_filename)))
         os.remove(img_path)
         exec_time = round(monotonic() - exec_time, 2)
@@ -184,7 +259,7 @@ def path_files_handler(
             # Recursive traversal of all directories inside the path and
             # ignoring the directories specified in the configuration
             if Path.is_dir(iter_path):
-                if i_file_name in config["compress"]["ignore_directories"] \
+                if i_file_name in config.get("compress").get("ignore_directories") \
                         or i_file_name.startswith('.'):
                     logger.info(f'>>> "{i_file_name}" dir is ignored.')
                     continue
@@ -212,13 +287,30 @@ def path_files_handler(
                     )
                     compressed_img += result[0]
                     compressed_size += result[1]
-                except TimeoutError as err:
-                    logger.error(f'Error: {err}')
+                except TimeoutError as e:
+                    logger.error(f'Error: {e}')
                     continue
             else:
                 logger.warning(f'This is not an image: {iter_path}')
         return compressed_size, compressed_img
     except OSError as err:
         logger.error(f'Error: {err}')
-        send_email(error=err)
+        send_email(error_msg=err)
         return compressed_size, compressed_img, None
+
+
+@logger.catch
+def main() -> None:
+    """ main function """
+    logger.info('Starting script...')
+    uptime = monotonic()
+    result = path_files_handler(path=config.get("compress").get("img_path"))
+    if None in result:
+        logger.error('The storage is unavailable or something went wrong. Stopping...')
+    uptime = round(monotonic() - uptime, 2)
+    logger.success(f'Script finished. Compressed files: {result[1]}. '
+                   f'Saved: {round(result[0], 2)} MB | Time: {uptime} seconds.')
+
+
+if __name__ == '__main__':
+    main()
