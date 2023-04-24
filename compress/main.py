@@ -230,7 +230,7 @@ def compress_image(
 
 def path_files_handler(
         path: str, compressed_size: int = 0, compressed_img: int = 0
-) -> Optional[Tuple]:
+) -> Tuple:
     """
     A recursive function that searches for images inside all directories by the resulting path.
     Passes the found path to the compression function.
@@ -241,7 +241,7 @@ def path_files_handler(
     Returns:
         compressed_size (int): Total size of the compressed size
         compressed_img (int): Number of compressed files
-        None: If the files were not found or something went wrong
+        err (OSError): Error object if the path is unavailable
     """
     logger.info(f'Current directory: {path}')
     try:
