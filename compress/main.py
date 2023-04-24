@@ -197,7 +197,7 @@ def convert_size(size: int) -> float:
 @timeout(config.get("execution_timeout"), use_signals=False)
 def compress_image(
         dir_path: str, img_path: str, filename: str, ext_index: Optional[int]
-) -> Tuple[int, float]:
+) -> Tuple[int, float, OSError]:
     """
     Compression function. Compresses the image files in the directory
     by the resulting path and renames the files by adding a postfix
@@ -295,8 +295,7 @@ def path_files_handler(
         return compressed_size, compressed_img
     except OSError as err:
         logger.error(f'Error: {err}')
-        send_email(error_msg=err)
-        return compressed_size, compressed_img, None
+        return compressed_size, compressed_img, err
 
 
 @logger.catch
@@ -305,11 +304,15 @@ def main() -> None:
     logger.info('Starting script...')
     uptime = monotonic()
     result = path_files_handler(path=config.get("compress").get("img_path"))
-    if None in result:
-        logger.error('The storage is unavailable or something went wrong. Stopping...')
     uptime = round(monotonic() - uptime, 2)
-    logger.success(f'Script finished. Compressed files: {result[1]}. '
-                   f'Saved: {round(result[0], 2)} MB | Time: {uptime} seconds.')
+    final_message = f'Script finished. Compressed files: {result[1]}. ' \
+                    f'Saved: {round(result[0], 2)} MB | Time: {uptime} seconds.'
+    if len(result) > 2:
+        logger.error('The storage is unavailable or something went wrong. Stopping...')
+        logger.success(final_message)
+        send_email(error_msg=result[-1])
+    else:
+        logger.success(final_message)
 
 
 if __name__ == '__main__':
