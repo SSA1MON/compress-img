@@ -17,7 +17,7 @@ from wrapt_timeout_decorator import timeout
 
 
 try:
-    with open('config.json', 'r', encoding='utf-8') as file:
+    with open('config.json', mode='r', encoding='utf-8') as file:
         config = json.load(file)
 except FileNotFoundError as error:
     print(error)
@@ -58,36 +58,42 @@ def timeout_connect(path: str) -> Optional[bool]:
         raise OSError(f'Error: {e}') from e
 
 
-def send_email(error_msg: OSError) -> None:
+def send_email(status: str, result: str, error_msg: OSError = None) -> None:
     """
     A function that sends an email to the addresses specified in the configuration file.
     Without authorization.
     Args:
-        error (OSError): The error message to be sent
+        status (str): Result of the function execution. Successful or error
+        result (str): The result of performing compression (number of files, size, etc.)
+        error_msg (OSError): Error message to be sent
     """
-
     def attachment(filename: str) -> MIMEApplication:
         """A function that attaches a file to the email"""
         try:
-            with open(f'logs/{filename}', 'r', encoding='utf-8') as logs:
+            with open(f'logs/{filename}', mode='r', encoding='utf-8') as logs:
                 part = MIMEApplication(logs.read())
-                part.add_header(
-                    'Content-Disposition', 'attachment',
-                    filename=filename
-                )
+                part.add_header('Content-Disposition', 'attachment', filename=filename)
             return part
         except FileNotFoundError:
-            logger.error(f"File not found: {filename} in attachment func (email_module.py)")
+            logger.error(f"File not found: {filename} in attachment func")
 
-    if config["smtp"]["enable"]:
+    if config.get("smtp").get("enable"):
+        subject, text = None, None
+        if status == 'error':
+            subject = 'Compression execution error'
+            text = f'An error occurred while executing\n\n{error_msg}\n\n{result}' \
+                   '\n\nNotifications can be turned off in the config file'
+        elif status == 'success':
+            subject = 'Compression completed successfully'
+            text = f'{result}\n\nNotifications can be turned off in the config file'
         # create a message object
         message = MIMEMultipart()
-        message['Subject'] = 'Compression execution error'
-        message['From'] = config["smtp"]["from_email"]
-        message['To'] = ', '.join(config["smtp"]["to_email"])
+        message['Subject'] = subject
+        message['From'] = config.get("smtp").get("from_email")
+        message['To'] = ', '.join(config.get("smtp").get("to_email"))
 
         # add a text message to the email
-        text = MIMEText(f'An error occurred while executing\n\n{error_msg}')
+        text = MIMEText(text)
         message.attach(text)
 
         logfile = config.get("logger").get("log_name")
@@ -197,7 +203,7 @@ def convert_size(size: int) -> float:
 @timeout(config.get("execution_timeout"), use_signals=False)
 def compress_image(
         dir_path: str, img_path: str, filename: str, ext_index: Optional[int]
-) -> Tuple[int, float, OSError]:
+) -> Tuple[int, float]:
     """
     Compression function. Compresses the image files in the directory
     by the resulting path and renames the files by adding a postfix
@@ -223,8 +229,8 @@ def compress_image(
         exec_time = round(monotonic() - exec_time, 2)
         logger.info(f'>>> {filename} was compressed in {exec_time} seconds.')
         return 1, size
-    except OSError as error:
-        logger.error(f'>>> "{img_path}" could not be compressed. Error: {error}')
+    except OSError as oserr:
+        logger.error(f'>>> "{img_path}" could not be compressed. Error: {oserr}')
         return 0, 0
 
 
@@ -310,9 +316,10 @@ def main() -> None:
     if len(result) > 2:
         logger.error('The storage is unavailable or something went wrong. Stopping...')
         logger.success(final_message)
-        send_email(error_msg=result[-1])
+        send_email(status='error', result=final_message, error_msg=result[-1])
     else:
         logger.success(final_message)
+        send_email(status='success', result=final_message)
 
 
 if __name__ == '__main__':
