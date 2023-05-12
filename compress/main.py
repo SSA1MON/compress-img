@@ -53,12 +53,12 @@ def timeout_connect(path: str) -> Optional[bool]:
         if thr.is_alive():
             return None
         return True
-    except OSError as e:
-        logger.error(f'Error: {e}')
-        raise OSError(f'Error: {e}') from e
+    except OSError as oserr:
+        logger.error(f'Error: {oserr}')
+        raise OSError(f'Error: {oserr}') from oserr
 
 
-def send_email(status: str, result: str, error_msg: OSError = None) -> None:
+def send_email(status: str, result: str, error_msg: OSError) -> None:
     """
     A function that sends an email to the addresses specified in the configuration file.
     Without authorization.
@@ -67,18 +67,20 @@ def send_email(status: str, result: str, error_msg: OSError = None) -> None:
         result (str): The result of performing compression (number of files, size, etc.)
         error_msg (OSError): Error message to be sent
     """
-    def attachment(filename: str) -> MIMEApplication:
+
+    def attachment(filename: str) -> Optional[MIMEApplication]:
         """A function that attaches a file to the email"""
         try:
             with open(f'logs/{filename}', mode='r', encoding='utf-8') as logs:
-                part = MIMEApplication(logs.read())
-                part.add_header('Content-Disposition', 'attachment', filename=filename)
-            return part
+                att_part = MIMEApplication(logs.read())
+                att_part.add_header('Content-Disposition', 'attachment', filename=filename)
+            return att_part
         except FileNotFoundError:
             logger.error(f"File not found: {filename} in attachment func")
+            return None
 
     if config.get("smtp").get("enable"):
-        subject, text = None, None
+        subject, text = 'None', 'None'
         if status == 'error':
             subject = 'Compression execution error'
             text = f'An error occurred while executing\n\n{error_msg}\n\n{result}' \
@@ -93,8 +95,7 @@ def send_email(status: str, result: str, error_msg: OSError = None) -> None:
         message['To'] = ', '.join(config.get("smtp").get("to_email"))
 
         # add a text message to the email
-        text = MIMEText(text)
-        message.attach(text)
+        message.attach(MIMEText(text))
 
         logfile = config.get("logger").get("log_name")
         files = [f'{logfile}.log', f'{logfile}_error.log']
@@ -117,7 +118,7 @@ def send_email(status: str, result: str, error_msg: OSError = None) -> None:
         except smtplib.SMTPResponseException as smtp_err:
             error_code = smtp_err.smtp_code
             error_message = smtp_err.smtp_error
-            logger.error(f"SMTP Error: {error_code} | {error_message}")
+            logger.error(f'SMTP Error: {error_code} | {error_message}')
 
 
 def get_files_list(path: str) -> List[str]:
@@ -144,7 +145,8 @@ def get_files_list(path: str) -> List[str]:
     # Checking that the file creation time matches the condition
     files_list = [filename for filename, days in days_list.items()
                   if Path.is_file(Path(path, filename))
-                  and days >= config.get("compress").get("creation_days") or Path.is_dir(Path(path, filename))
+                  and days >= config.get("compress").get("creation_days")
+                  or Path.is_dir(Path(path, filename))
                   ]
     return files_list
 
@@ -217,7 +219,8 @@ def compress_image(
         int: 1 if the compression was successful, 0 if not
         size (float): Saved size as a result of compression
     """
-    new_filename = filename[:ext_index] + config.get("compress").get("postfix") + filename[ext_index:]
+    new_filename = \
+        filename[:ext_index] + config.get("compress").get("postfix") + filename[ext_index:]
     exec_time = monotonic()
     try:
         size = convert_size(os.path.getsize(img_path))
@@ -293,8 +296,8 @@ def path_files_handler(
                     )
                     compressed_img += result[0]
                     compressed_size += result[1]
-                except TimeoutError as e:
-                    logger.error(f'Error: {e}')
+                except TimeoutError as errtime:
+                    logger.error(f'Error: {errtime}')
                     continue
             else:
                 logger.warning(f'This is not an image: {iter_path}')
@@ -316,10 +319,11 @@ def main() -> None:
     if len(result) > 2:
         logger.error('The storage is unavailable or something went wrong. Stopping...')
         logger.success(final_message)
-        send_email(status='error', result=final_message, error_msg=result[-1])
+        email_status = ['error', result[-1]]
     else:
         logger.success(final_message)
-        send_email(status='success', result=final_message)
+        email_status = ['success', None]
+    send_email(status=email_status[0], result=final_message, error_msg=email_status[1])
 
 
 if __name__ == '__main__':
