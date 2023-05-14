@@ -1,3 +1,4 @@
-cd .\compress-env\Scripts
+cd .\venv\Scripts
 .\activate
-cd ../../compress | python main.py
+cd ../..
+python main.py

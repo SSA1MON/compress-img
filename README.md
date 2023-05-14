@@ -15,7 +15,7 @@ creating a copy of the file with a postfix and deletes the original.
 ## How to launch
 Create a virtual environment and activate it
 ```
-python3 -m venv compress-env
+python3 -m venv venv
 source compress-env/bin/activate
 ```
 Installing dependent libraries

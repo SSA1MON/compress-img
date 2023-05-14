@@ -1,6 +1,4 @@
-import json
 import os
-import sys
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -15,21 +13,15 @@ from PIL import Image
 from loguru import logger
 from wrapt_timeout_decorator import timeout
 
-
-try:
-    with open('config.json', mode='r', encoding='utf-8') as file:
-        config = json.load(file)
-except FileNotFoundError as error:
-    print(error)
-    sys.exit(0)
+from config_data import config
 
 
-logger.add(f'logs/{config.get("logger").get("log_name")}.log',
+logger.add(f'logs/{config.LOGGER.get("log_name")}.log',
            format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
-           level='DEBUG', rotation=config.get("logger").get("rotation"), compression='zip')
-logger.add(f'logs/{config.get("logger").get("log_name")}_error.log',
+           level='DEBUG', rotation=config.LOGGER.get("rotation"), compression='zip')
+logger.add(f'logs/{config.LOGGER.get("log_name")}_error.log',
            format='{time:DD.MM.YYYY HH:mm:ss} | {level} | {message}',
-           level='ERROR', rotation=config.get("logger").get("rotation"), compression='zip')
+           level='ERROR', rotation=config.LOGGER.get("rotation"), compression='zip')
 
 
 def timeout_connect(path: str) -> Optional[bool]:
@@ -49,7 +41,7 @@ def timeout_connect(path: str) -> Optional[bool]:
         thr = threading.Thread(target=lambda: contents.extend(os.listdir(path)))
         thr.daemon = True
         thr.start()
-        thr.join(timeout=config.get("connection_timeout"))
+        thr.join(timeout=config.TIMEOUT.get("connection_timeout"))
         if thr.is_alive():
             return None
         return True
@@ -79,46 +71,48 @@ def send_email(status: str, result: str, error_msg: OSError) -> None:
             logger.error(f"File not found: {filename} in attachment func")
             return None
 
-    if config.get("smtp").get("enable"):
-        subject, text = 'None', 'None'
-        if status == 'error':
-            subject = 'Compression execution error'
-            text = f'An error occurred while executing\n\n{error_msg}\n\n{result}' \
-                   '\n\nNotifications can be turned off in the config file'
-        elif status == 'success':
-            subject = 'Compression completed successfully'
-            text = f'{result}\n\nNotifications can be turned off in the config file'
-        # create a message object
-        message = MIMEMultipart()
-        message['Subject'] = subject
-        message['From'] = config.get("smtp").get("from_email")
-        message['To'] = ', '.join(config.get("smtp").get("to_email"))
+    try:
+        if config.SMTP.get("enable"):
+            subject, text = 'None', 'None'
+            if status == 'error':
+                subject = 'Compression execution error'
+                text = f'An error occurred while executing\n\n{error_msg}\n\n{result}' \
+                       '\n\nNotifications can be turned off in the config file'
+            elif status == 'success':
+                subject = 'Compression completed successfully'
+                text = f'{result}\n\nNotifications can be turned off in the config file'
+            # create a message object
+            message = MIMEMultipart()
+            message['Subject'] = subject
+            message['From'] = config.SMTP.get("from_email")
+            message['To'] = ', '.join(config.SMTP.get("to_email"))
 
-        # add a text message to the email
-        message.attach(MIMEText(text))
+            # add a text message to the email
+            message.attach(MIMEText(text))
 
-        logfile = config.get("logger").get("log_name")
-        files = [f'{logfile}.log', f'{logfile}_error.log']
+            logfile = config.LOGGER.get("log_name")
+            files = [f'{logfile}.log', f'{logfile}_error.log']
 
-        for i_name in files:
-            part = attachment(i_name)
-            if part is not None:
-                message.attach(part)
+            for i_name in files:
+                part = attachment(i_name)
+                if part is not None:
+                    message.attach(part)
 
-        try:
-            with smtplib.SMTP(
-                    config.get("smtp").get("smtp_server"),
-                    config.get("smtp").get("smtp_port")
-            ) as server:
-                server.sendmail(
-                    message['From'],
-                    config.get("smtp").get("to_email"),
-                    message.as_string()
-                )
-        except smtplib.SMTPResponseException as smtp_err:
-            error_code = smtp_err.smtp_code
-            error_message = smtp_err.smtp_error
-            logger.error(f'SMTP Error: {error_code} | {error_message}')
+                with smtplib.SMTP(
+                        config.SMTP.get("smtp_address"),
+                        config.SMTP.get("smtp_port")
+                ) as server:
+                    server.sendmail(
+                        message['From'],
+                        config.SMTP.get("to_email"),
+                        message.as_string()
+                    )
+    except smtplib.SMTPResponseException as smtp_err:
+        error_code = smtp_err.smtp_code
+        error_message = smtp_err.smtp_error
+        logger.error(f'SMTP Error: {error_code} | {error_message}')
+    except Exception as exc:
+        logger.error(f'send_email func error: {exc}')
 
 
 def get_files_list(path: str) -> List[str]:
@@ -132,10 +126,10 @@ def get_files_list(path: str) -> List[str]:
     Returns:
         files_list (list): List with file names
     """
-    img_formats = tuple(config["compress"]["image_formats"])
+    img_formats = tuple(config.COMPRESS.get("image_formats"))
     # Removes all values with a postfix
     files_list = [filename for filename in os.listdir(path)
-                  if config.get("compress").get("postfix") not in filename
+                  if config.COMPRESS.get("postfix") not in filename
                   and filename.lower().endswith(img_formats) or Path.is_dir(Path(path, filename))
                   ]
     files_list.sort()
@@ -145,7 +139,7 @@ def get_files_list(path: str) -> List[str]:
     # Checking that the file creation time matches the condition
     files_list = [filename for filename, days in days_list.items()
                   if Path.is_file(Path(path, filename))
-                  and days >= config.get("compress").get("creation_days")
+                  and days >= config.COMPRESS.get("creation_days")
                   or Path.is_dir(Path(path, filename))
                   ]
     return files_list
@@ -180,7 +174,7 @@ def search_extension_index(path: Path, name: str) -> Optional[int]:
     """
     if not Path.is_dir(path):
         name = name.lower()
-        for i_ext in config.get("compress").get("image_formats"):
+        for i_ext in config.COMPRESS.get("image_formats"):
             extension_index = name.rfind(i_ext)
             # Checking for the presence of a file extension in the received string
             if extension_index != -1:
@@ -202,7 +196,7 @@ def convert_size(size: int) -> float:
     return 0
 
 
-@timeout(config.get("execution_timeout"), use_signals=False)
+@timeout(config.TIMEOUT.get("execution_timeout"), use_signals=False)
 def compress_image(
         dir_path: str, img_path: str, filename: str, ext_index: Optional[int]
 ) -> Tuple[int, float]:
@@ -220,13 +214,13 @@ def compress_image(
         size (float): Saved size as a result of compression
     """
     new_filename = \
-        filename[:ext_index] + config.get("compress").get("postfix") + filename[ext_index:]
+        filename[:ext_index] + config.COMPRESS.get("postfix") + filename[ext_index:]
     exec_time = monotonic()
     try:
         size = convert_size(os.path.getsize(img_path))
         logger.info(f'In the process of compression: {filename} [{size}MB]')
         with Image.open(img_path) as img:
-            img.save(Path(dir_path, new_filename), quality=config.get("compress").get("quality"))
+            img.save(Path(dir_path, new_filename), quality=config.COMPRESS.get("quality"))
         size = size - convert_size(os.path.getsize(Path(dir_path, new_filename)))
         os.remove(img_path)
         exec_time = round(monotonic() - exec_time, 2)
@@ -268,7 +262,7 @@ def path_files_handler(
             # Recursive traversal of all directories inside the path and
             # ignoring the directories specified in the configuration
             if Path.is_dir(iter_path):
-                if i_file_name in config.get("compress").get("ignore_directories") \
+                if i_file_name in config.COMPRESS.get("ignore_directories") \
                         or i_file_name.startswith('.'):
                     logger.info(f'>>> "{i_file_name}" dir is ignored.')
                     continue
@@ -312,7 +306,7 @@ def main() -> None:
     """ main function """
     logger.info('Starting script...')
     uptime = monotonic()
-    result = path_files_handler(path=config.get("compress").get("img_path"))
+    result = path_files_handler(path=config.COMPRESS.get("img_path"))
     uptime = round(monotonic() - uptime, 2)
     final_message = f'Script finished. Compressed files: {result[1]}. ' \
                     f'Saved: {round(result[0], 2)} MB | Time: {uptime} seconds.'
