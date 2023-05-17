@@ -15,7 +15,7 @@ SMTP = {
 }
 LOGGER = {
     "log_name": "compress",
-    "rotation": "1 week, 6 days"
+    "rotation": "1 week"
 }
 TIMEOUT = {
   "connection_timeout": 5,

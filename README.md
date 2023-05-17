@@ -8,24 +8,25 @@
 </p>
 
 ## Description
-The script is based on [pillow](https://github.com/python-pillow/Pillow) library. 
-Receives the input path, goes through all the directories inside, compresses the images
-creating a copy of the file with a postfix and deletes the original.
+The script is based on [pillow](https://github.com/python-pillow/Pillow ) library. 
+Gets the input path, looks through all the directories inside, compresses the images
+according to the conditions from the configuration file, creating a copy of the file 
+with a postfix, and deletes the original.
 
 ## How to launch
-Create a virtual environment and activate it
+Create a virtual environment in the project folder and activate it
 ```
 python3 -m venv venv
-source compress-env/bin/activate
+source venv/bin/activate
 ```
 Installing dependent libraries
 ```
 pip3 install -r requirements.txt
 ```
-In the config.json file it is necessary to write the path to the directory with images 
-in img_path
+In the config_data/config.py file it is necessary to write the path to the directory
+with images (in img_path)
 ```
-"img_path": "/home/user"
+"img_path": "/home/user/img_dir/"
 ```
 Run
 ```
@@ -53,6 +54,8 @@ smtp:
 logger:
 "log_name" — Name of the logging file
 "rotation" — The period after which the main logging file will be archived
+
+tineout:
 "connection_timeout" — Waiting time to connect to the storage (in seconds).
 Used to check the visit of each iterated path
 "execution_timeout" — The working time of the compression function with the
