@@ -1,4 +1,1 @@
-cd .\venv\Scripts
-.\activate
-cd ../..
-python main.py
+./venv/Scripts/activate.ps1 | python main.py
