@@ -25,7 +25,7 @@ def get_files_list(path: str) -> List[str]:
     files_list = [filename for filename in os.listdir(path)
                   if (config.COMPRESS.get("postfix") not in filename
                       and filename.lower().endswith(img_formats)
-                      and not Path.is_dir(Path(path, filename)))
+                      or Path.is_dir(Path(path, filename)))
                   ]
     files_list.sort()
     # Getting information about the file creation date and entering it into the dictionary
