@@ -79,7 +79,7 @@ def search_extension_index(path: Path, name: str) -> Optional[int]:
 
 def path_files_handler(
         path: str, compressed_size: int = 0, compressed_img: int = 0
-) -> Tuple:
+) -> List:
     """
     A recursive function that searches for images inside all directories by the resulting path.
     Passes the found path to the compression function.
@@ -100,7 +100,7 @@ def path_files_handler(
             available_path = timeout_connect(path=path)
             if not available_path:
                 logger.error('Path is unavailable (timeout). Interruption...')
-                return compressed_size, compressed_img
+                return [compressed_size, compressed_img]
 
             iter_path = Path(path, i_file_name)
             extension_index = search_extension_index(path=iter_path, name=i_file_name)
@@ -141,7 +141,7 @@ def path_files_handler(
                     continue
             else:
                 logger.warning(f'This is not an image: {iter_path}')
-        return compressed_size, compressed_img
+        return [compressed_size, compressed_img]
     except OSError as err:
         logger.error(f'Error: {err}')
-        return compressed_size, compressed_img, err
+        return [compressed_size, compressed_img, str(err)]

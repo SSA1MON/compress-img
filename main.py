@@ -21,7 +21,9 @@ def main() -> None:
     else:
         logger.success(final_message)
         email_status = ['success', None]
-    email_notify.send_email(status=email_status[0], result=final_message, error_msg=email_status[1])
+    email_notify.send_email(
+        status=email_status[0], result=result + [uptime], error_msg=email_status[1]
+    )
 
 
 if __name__ == '__main__':
