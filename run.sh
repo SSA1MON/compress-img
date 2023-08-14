@@ -1,2 +1,2 @@
 #!/bin/bash
-source ./venv/bin/activate && python3 main.py
+source /home/manager/compress-img/venv/bin/activate && python3 compress-img/main.py
