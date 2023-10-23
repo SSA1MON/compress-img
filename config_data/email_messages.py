@@ -1,4 +1,4 @@
-notify_msg = ">> Notifications can be turned off in the config file inside the host"
+notify_msg = "Notifications can be turned off in the config file inside the host"
 ERROR_TEXT = "Status: Completed with an error\n" \
              "Error: {error}\n" \
              "Path: {path}\n" \

@@ -139,6 +139,8 @@ def path_files_handler(
                 except TimeoutError as errtime:
                     logger.error(f'Error: {errtime}')
                     continue
+                except OSError as oserr:
+                    raise OSError(oserr)
             else:
                 logger.warning(f'This is not an image: {iter_path}')
         return [compressed_size, compressed_img]

@@ -55,5 +55,8 @@ def compress_image(
         logger.info(f'>>> {filename} was compressed in {exec_time} seconds.')
         return 1, size
     except OSError as oserr:
+        # Error handling when there is not enough disk space
+        if "[Errno 28]" in str(oserr):
+            raise OSError(oserr)
         logger.error(f'>>> "{img_path}" could not be compressed. Error: {oserr}')
         return 0, 0
